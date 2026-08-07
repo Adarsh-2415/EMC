@@ -20,7 +20,7 @@ export const AdminLayout: React.FC = () => {
   }, [])
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-900">
+    <div className="w-full min-h-screen bg-slate-100 flex overflow-hidden font-sans antialiased text-slate-900">
       <SEO title="Admin Dashboard | EMC" noindex={true} />
       {/* Sidebar */}
       <AdminSidebar
