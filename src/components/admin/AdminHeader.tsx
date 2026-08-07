@@ -46,7 +46,7 @@ export const AdminHeader: React.FC = () => {
             {getGreeting()}, <span className="text-emerald-600">{adminName}</span>
           </h2>
           <p className="text-xs text-slate-500 font-medium">
-            EMC Corporate Portal • Real-Time Dashboard
+            EMC • Real-Time Dashboard
           </p>
         </div>
 

@@ -20,7 +20,7 @@ export const AuthLoadingScreen: React.FC = () => {
 
       <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-500 tracking-widest pt-4">
         <Loader2 className="w-3 h-3 animate-spin text-emerald-500" />
-        <span>Excel Management Certifications Admin Portal</span>
+        <span>Excel Management Certifications Admin Dashboard</span>
       </div>
     </div>
   )
