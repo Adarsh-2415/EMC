@@ -1,0 +1,9 @@
+# Excel Management Certifications (EMC) - Robots Exclusion File
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /api/
+
+# XML Sitemap Index
+Sitemap: https://www.emcindia.org/sitemap.xml
