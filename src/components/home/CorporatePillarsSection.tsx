@@ -76,7 +76,7 @@ export const CorporatePillarsSection: React.FC = () => {
 
               <p className="text-slate-700 text-sm sm:text-base leading-relaxed font-normal pt-1">
                 We are dedicated to profitably increase our market share by strengthening our
-                customer and supplier relationships.
+                customer and supplier relationships and delivering top-tier global management system certifications.
               </p>
             </div>
 
@@ -103,10 +103,9 @@ export const CorporatePillarsSection: React.FC = () => {
               </div>
 
               <p className="text-slate-700 text-sm sm:text-base leading-relaxed font-normal pt-1">
-                To ensure the enhancement and continual improvement in the operational and quality
-                efficiency through the value added, competitive, result oriented auditing practices
-                to achieve international recognition for excellence of Management System
-                Certification.
+                To ensure the enhancement and continual improvement in operational and quality
+                efficiency through value-added, competitive, result-oriented auditing practices
+                to achieve international recognition for excellence in Management System Certification.
               </p>
             </div>
 
@@ -133,15 +132,12 @@ export const CorporatePillarsSection: React.FC = () => {
               </div>
 
               <p className="text-slate-700 text-sm sm:text-base leading-relaxed font-normal pt-1">
-                To ensure the enhancement and continual improvement in the operational and quality
-                efficiency through the value added, competitive, result oriented auditing practices
-                to achieve international recognition for excellence of Management System
-                Certification.
+                Excel Management Certifications is committed to delivering impartial, transparent, and high-value system certification services. We strive to maintain absolute integrity, comply with global accreditation norms, and continuously elevate client satisfaction through objective audit standards.
               </p>
             </div>
 
             <div className="pt-6 border-t border-slate-100 mt-6 text-xs text-slate-400 font-medium">
-              International Recognition
+              Impartiality & Global Assurance
             </div>
           </motion.div>
         </motion.div>

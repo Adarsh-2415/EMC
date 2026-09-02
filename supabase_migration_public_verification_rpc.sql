@@ -52,10 +52,34 @@ REVOKE ALL ON FUNCTION public.verify_certificate(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.verify_certificate(TEXT) TO anon, authenticated;
 
 -- ========================================================
--- 3. Simplified & Exact Storage RLS Policy
--- Upload strategy stores pdf_path relative to bucket root (e.g. "ABC123.pdf").
--- Permits reading ONLY PDF objects whose path exactly matches emc_certificates.pdf_path.
+-- 3. SECURITY DEFINER Helper Function for Storage RLS Policy
+-- Bypasses emc_certificates RLS when evaluating anon storage queries
 -- ========================================================
+CREATE OR REPLACE FUNCTION public.is_valid_certificate_pdf(object_name TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 
+    FROM public.emc_certificates c 
+    WHERE c.pdf_path = object_name
+       OR c.pdf_path = 'certificate-pdfs/' || object_name
+       OR object_name = c.certificate_no || '.pdf'
+       OR UPPER(object_name) = UPPER(c.certificate_no || '.pdf')
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_valid_certificate_pdf(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_valid_certificate_pdf(TEXT) TO anon, authenticated;
+
+-- ========================================================
+-- 4. Hardened Storage RLS Policy
+-- Upload strategy stores pdf_path relative to bucket root (e.g. "ABC123.pdf").
+-- Permits reading ONLY PDF objects whose path belongs to a valid certificate.
+-- ========================================================
+DROP POLICY IF EXISTS "Allow authenticated admin select certificate-pdfs" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public select certificate-pdfs" ON storage.objects;
 DROP POLICY IF EXISTS "Allow anon select valid certificate pdfs" ON storage.objects;
 
@@ -63,8 +87,5 @@ CREATE POLICY "Allow anon select valid certificate pdfs"
   ON storage.objects FOR SELECT TO anon, authenticated
   USING (
     bucket_id = 'certificate-pdfs' 
-    AND EXISTS (
-      SELECT 1 FROM public.emc_certificates c 
-      WHERE c.pdf_path = storage.objects.name
-    )
+    AND public.is_valid_certificate_pdf(name)
   );

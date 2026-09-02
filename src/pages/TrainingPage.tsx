@@ -2,7 +2,7 @@ import React from 'react'
 import { motion, type Variants } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import slider4 from '@/assets/images/slider-4.jpg'
-import { GraduationCap, Award, ShieldCheck, CheckCircle2, ChevronRight, FileCheck2, Globe2 } from 'lucide-react'
+import { GraduationCap, Award, ShieldCheck, CheckCircle2, ChevronRight, FileCheck2, Globe2, Info } from 'lucide-react'
 import { SEO } from '@/components/common/SEO'
 import { MAIN_PAGES_SEO } from '@/constants/seoData'
 import { generateBreadcrumbSchema } from '@/utils/schemaGenerator'
@@ -35,13 +35,14 @@ export const TrainingPage: React.FC = () => {
     'ISO 9001:2015 – Quality Management System.',
     'ISO 14001:2015 – Environment Management System.',
     'ISO 45001:2018 – Occupational Health & Safety Management System.',
-    'ISO 22000:2018– Food Safety Management System.',
-    'ISO 27001:2013 – Information Security Management System SIX SIGMA BLACK BELT.',
+    'ISO 22000:2018 – Food Safety Management System.',
+    'ISO/IEC 27001:2022 – Information Security Management System.',
+    'Six Sigma Black Belt Certification Program.',
   ]
 
   const sisbelCourses = [
-    'ISO 13485- Medical Devices Quality Management System.',
-    'ISO 50001 – Energy Management System',
+    'ISO 13485:2016 – Medical Devices Quality Management System.',
+    'ISO 50001:2018 – Energy Management System.',
   ]
 
   return (
@@ -100,6 +101,15 @@ export const TrainingPage: React.FC = () => {
       {/* Section 2: Lead Auditor Certification Programs & Approvals */}
       <section className="w-full bg-white border-b border-slate-200 py-12 sm:py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          {/* Accreditation Framework Explanation Note */}
+          <div className="border-l-4 border-blue-600 bg-blue-50/50 p-5 rounded-r-xl border border-blue-200/60 text-slate-800 text-xs sm:text-sm leading-relaxed flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-slate-900 block mb-1">Accreditation Framework & Training Approvals</span>
+              EMC conducts personnel certification and auditor training programs under distinct recognized frameworks. Our management system Lead Auditor courses operate under international approvals from ICAB (Switzerland) and SISBEL (IPC Full Member), alongside training courses aligned with IRCA and IEMA standards.
+            </div>
+          </div>
+
           {/* ICAB Switzerland Section */}
           <div className="space-y-6">
             <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-2xl shadow-xl border border-slate-800 space-y-4">
@@ -225,7 +235,7 @@ export const TrainingPage: React.FC = () => {
               designed to add value and improve an organization’s operations. It helps an
               organization accomplish its objectives by bringing a systematic, disciplined approach
               to evaluating and improving the effectiveness of risk management, control, and
-              governance processes.[1] Internal auditing is a catalyst for improving an
+              governance processes. Internal auditing is a catalyst for improving an
               organization’s effectiveness and efficiency by providing insight and recommendations
               based on analysis and assessments of data and business processes. With a commitment
               to integrity and accountability, internal auditing provides value to governing bodies
@@ -248,7 +258,7 @@ export const TrainingPage: React.FC = () => {
               activities; they advise management and the Board of Directors (or similar oversight body)
               regarding how to better execute their responsibilities. As a result of their broad scope
               of involvement, internal auditors may have a variety of higher educational and
-              professional backgrounds
+              professional backgrounds.
             </p>
 
             {/* Paragraph 4 - Dark Executive Auditor Box */}

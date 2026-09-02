@@ -103,7 +103,7 @@ export const Footer: React.FC = () => {
 
       {/* Copyright Bar */}
       <div className="border-t border-slate-900 bg-slate-950 py-4 px-4 text-center text-xs text-slate-500">
-        &copy; 2026 - Excel Management Certifications
+        &copy; 2015 Excel Management Certifications. All Rights Reserved.
       </div>
     </footer>
   )

@@ -4,18 +4,17 @@ import { ChevronDown, Check, Plus } from 'lucide-react'
 // eslint-disable-next-line react-refresh/only-export-components
 export const PREDEFINED_STANDARDS = [
   'ISO 9001:2015 QMS',
-  'ISO 14001:2004 EMS',
-  'ISO 18001:2007 OHSAS',
-  'ISO 22000:2005 FSMS',
-  'ISO/TS 16949',
-  'ISO/IEC 27001:2005',
-  'ISO/IEC 17025:2005',
+  'ISO 14001:2015 EMS',
+  'ISO 45001:2018 OHSMS',
+  'ISO 22000:2018 FSMS',
+  'IATF 16949:2016',
+  'ISO/IEC 27001:2022 ISMS',
+  'ISO/IEC 17025:2017',
   'WHO-GMP',
   'SA 8000',
   'ORGANIC CERTIFICATION',
-  'ISO 45001:2018 OHSMS',
   'ISO/IEC 20000-1:2018',
-  'ISO 50001:2011',
+  'ISO 50001:2018 EnMS',
   'ISO 13485:2016',
 ] as const
 
