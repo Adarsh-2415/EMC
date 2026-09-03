@@ -9,6 +9,7 @@ import { sendEmailNotification } from '@/lib/emailService'
 import { SEO } from '@/components/common/SEO'
 import { MAIN_PAGES_SEO } from '@/constants/seoData'
 import { generateBreadcrumbSchema } from '@/utils/schemaGenerator'
+import { CaptchaInput, generateCaptchaCode } from '@/components/common/CaptchaInput'
 
 const applicationSchema = z.object({
   companyName: z.string().min(1, { message: 'Company Name is required' }),
@@ -30,6 +31,15 @@ type ApplicationFormValues = z.infer<typeof applicationSchema>
 export const ApplicationPage: React.FC = () => {
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [captchaCode, setCaptchaCode] = useState(() => generateCaptchaCode())
+  const [captchaInput, setCaptchaInput] = useState('')
+  const [captchaError, setCaptchaError] = useState('')
+
+  const handleRefreshCaptcha = () => {
+    setCaptchaCode(generateCaptchaCode())
+    setCaptchaInput('')
+    setCaptchaError('')
+  }
 
   const {
     register,
@@ -49,11 +59,25 @@ export const ApplicationPage: React.FC = () => {
   })
 
   const onSubmit = async (data: ApplicationFormValues) => {
+    // 1. CAPTCHA Validation
+    if (!captchaInput.trim()) {
+      setCaptchaError('Please enter the CAPTCHA code')
+      return
+    }
+
+    if (captchaInput.trim().toUpperCase() !== captchaCode.toUpperCase()) {
+      setCaptchaError('Incorrect CAPTCHA code. Please try again.')
+      setCaptchaCode(generateCaptchaCode())
+      setCaptchaInput('')
+      return
+    }
+
+    setCaptchaError('')
     setIsSubmitting(true)
     setSubmissionStatus('idle')
 
     try {
-      // 1. Save to Supabase emc_online_applications table FIRST
+      // 2. Save to Supabase emc_online_applications table FIRST
       const { error } = await supabase.from('emc_online_applications').insert([
         {
           company_name: data.companyName,
@@ -70,8 +94,10 @@ export const ApplicationPage: React.FC = () => {
       } else {
         setSubmissionStatus('success')
         reset()
+        setCaptchaInput('')
+        setCaptchaCode(generateCaptchaCode())
 
-        // 2. Non-blocking asynchronous SMTP notification call
+        // 3. Non-blocking asynchronous SMTP notification call
         sendEmailNotification('application', {
           companyName: data.companyName,
           address: data.address,
@@ -305,11 +331,24 @@ export const ApplicationPage: React.FC = () => {
               )}
             </div>
 
+            {/* 7. CAPTCHA Security Input */}
+            <CaptchaInput
+              captchaCode={captchaCode}
+              onRefresh={handleRefreshCaptcha}
+              value={captchaInput}
+              onChange={(val) => {
+                setCaptchaInput(val)
+                if (captchaError) setCaptchaError('')
+              }}
+              error={captchaError}
+              disabled={isSubmitting}
+            />
+
             {/* Standard Submit Button */}
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-4 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-4 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed mt-4"
             >
               {isSubmitting ? (
                 <>

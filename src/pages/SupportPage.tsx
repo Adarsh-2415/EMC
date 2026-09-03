@@ -8,6 +8,7 @@ import { sendEmailNotification } from '@/lib/emailService'
 import { SEO } from '@/components/common/SEO'
 import { MAIN_PAGES_SEO } from '@/constants/seoData'
 import { generateContactPageSchema, generateBreadcrumbSchema } from '@/utils/schemaGenerator'
+import { CaptchaInput, generateCaptchaCode } from '@/components/common/CaptchaInput'
 
 const supportSchema = z.object({
   firstName: z.string().min(1, { message: 'First Name is required' }),
@@ -35,6 +36,15 @@ type SupportFormValues = z.infer<typeof supportSchema>
 export const SupportPage: React.FC = () => {
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [captchaCode, setCaptchaCode] = useState(() => generateCaptchaCode())
+  const [captchaInput, setCaptchaInput] = useState('')
+  const [captchaError, setCaptchaError] = useState('')
+
+  const handleRefreshCaptcha = () => {
+    setCaptchaCode(generateCaptchaCode())
+    setCaptchaInput('')
+    setCaptchaError('')
+  }
 
   const {
     register,
@@ -53,11 +63,25 @@ export const SupportPage: React.FC = () => {
   })
 
   const onSubmit = async (data: SupportFormValues) => {
+    // 1. CAPTCHA Validation
+    if (!captchaInput.trim()) {
+      setCaptchaError('Please enter the CAPTCHA code')
+      return
+    }
+
+    if (captchaInput.trim().toUpperCase() !== captchaCode.toUpperCase()) {
+      setCaptchaError('Incorrect CAPTCHA code. Please try again.')
+      setCaptchaCode(generateCaptchaCode())
+      setCaptchaInput('')
+      return
+    }
+
+    setCaptchaError('')
     setIsSubmitting(true)
     setSubmissionStatus('idle')
 
     try {
-      // 1. Save to Supabase emc_support_messages table FIRST
+      // 2. Save to Supabase emc_support_messages table FIRST
       const { error } = await supabase.from('emc_support_messages').insert([
         {
           first_name: data.firstName,
@@ -74,8 +98,10 @@ export const SupportPage: React.FC = () => {
       } else {
         setSubmissionStatus('success')
         reset()
+        setCaptchaInput('')
+        setCaptchaCode(generateCaptchaCode())
 
-        // 2. Non-blocking asynchronous SMTP notification call
+        // 3. Non-blocking asynchronous SMTP notification call
         sendEmailNotification('support', {
           firstName: data.firstName,
           lastName: data.lastName,
@@ -317,11 +343,24 @@ export const SupportPage: React.FC = () => {
               )}
             </div>
 
+            {/* 6. CAPTCHA Security Input */}
+            <CaptchaInput
+              captchaCode={captchaCode}
+              onRefresh={handleRefreshCaptcha}
+              value={captchaInput}
+              onChange={(val) => {
+                setCaptchaInput(val)
+                if (captchaError) setCaptchaError('')
+              }}
+              error={captchaError}
+              disabled={isSubmitting}
+            />
+
             {/* Standard Submit Button */}
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-4 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-4 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed mt-4"
             >
               {isSubmitting ? (
                 <>
