@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Check, Plus } from 'lucide-react'
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -35,6 +36,7 @@ export const StandardSelect: React.FC<StandardSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState(value)
   const [prevValue, setPrevValue] = useState(value)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -44,10 +46,40 @@ export const StandardSelect: React.FC<StandardSelectProps> = ({
     setSearch(value)
   }
 
+  const updatePosition = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setDropdownStyle({
+        position: 'fixed',
+        top: `${rect.bottom + 4}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        zIndex: 99999,
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition()
+      window.addEventListener('resize', updatePosition)
+      window.addEventListener('scroll', updatePosition, true)
+      return () => {
+        window.removeEventListener('resize', updatePosition)
+        window.removeEventListener('scroll', updatePosition, true)
+      }
+    }
+  }, [isOpen, updatePosition])
+
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        // Also check if click is inside portal dropdown
+        const portalElement = document.getElementById('standard-select-portal')
+        if (portalElement && portalElement.contains(e.target as Node)) {
+          return
+        }
         setIsOpen(false)
       }
     }
@@ -70,7 +102,7 @@ export const StandardSelect: React.FC<StandardSelectProps> = ({
   }
 
   return (
-    <div className="relative space-y-1" ref={containerRef}>
+    <div className="space-y-1" ref={containerRef}>
       <label htmlFor="standardSelect" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
         Standard / Certification
       </label>
@@ -86,7 +118,10 @@ export const StandardSelect: React.FC<StandardSelectProps> = ({
             onChange(e.target.value)
             setIsOpen(true)
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            updatePosition()
+            setIsOpen(true)
+          }}
           placeholder="Select or type a custom ISO standard..."
           className={`w-full pl-4 pr-10 py-3 rounded-xl border text-sm font-medium transition-colors text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
             error
@@ -97,46 +132,64 @@ export const StandardSelect: React.FC<StandardSelectProps> = ({
         <button
           type="button"
           tabIndex={-1}
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            updatePosition()
+            setIsOpen(!isOpen)
+          }}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1"
         >
           <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
-      {/* Dropdown Options */}
-      {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 py-1 text-xs select-none">
-          {filteredStandards.map((std) => (
-            <button
-              key={std}
-              type="button"
-              onClick={() => handleSelect(std)}
-              className="w-full text-left px-4 py-2.5 hover:bg-slate-100 flex items-center justify-between font-semibold text-slate-800 transition-colors"
-            >
-              <span>{std}</span>
-              {value === std && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
-            </button>
-          ))}
-
-          {isCustomValue && (
-            <button
-              type="button"
-              onClick={() => handleSelect(search.trim())}
-              className="w-full text-left px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex items-center gap-2 font-bold border-t border-emerald-200 transition-colors"
-            >
-              <Plus className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Use custom standard: &quot;{search.trim()}&quot;</span>
-            </button>
-          )}
-
-          {filteredStandards.length === 0 && !isCustomValue && (
-            <div className="px-4 py-3 text-slate-400 font-medium text-center">
-              Type to add custom standard
-            </div>
-          )}
-        </div>
+      {error && (
+        <p className="text-xs text-red-600 font-medium flex items-center gap-1 mt-1">
+          <span>{error}</span>
+        </p>
       )}
+
+      {/* Dropdown Options Rendered in Document Body Portal */}
+      {isOpen &&
+        createPortal(
+          <div
+            id="standard-select-portal"
+            style={dropdownStyle}
+            className="max-h-52 overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-200 py-1 text-xs select-none animate-in fade-in zoom-in-95 duration-100"
+          >
+            {filteredStandards.map((std) => (
+              <button
+                key={std}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(std)}
+                className="w-full text-left px-4 py-2.5 hover:bg-slate-100 flex items-center justify-between font-semibold text-slate-800 transition-colors"
+              >
+                <span>{std}</span>
+                {value === std && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+              </button>
+            ))}
+
+            {isCustomValue && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(search.trim())}
+                className="w-full text-left px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex items-center gap-2 font-bold border-t border-emerald-200 transition-colors"
+              >
+                <Plus className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Use custom standard: &quot;{search.trim()}&quot;</span>
+              </button>
+            )}
+
+            {filteredStandards.length === 0 && !isCustomValue && (
+              <div className="px-4 py-3 text-slate-400 font-medium text-center">
+                Type to add custom standard
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
+

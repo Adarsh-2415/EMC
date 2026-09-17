@@ -36,14 +36,14 @@ CREATE INDEX IF NOT EXISTS idx_emc_certs_expiry_date ON public.emc_certificates(
 
 -- ========================================================
 -- 3. Automatic Expiry Date Calculation Trigger Function
--- Business Rule: Expiry Date = Issue Date + 1 Year
+-- Business Rule: Expiry Date = Issue Date + 3 Years
 -- Recalculates on INSERT or when issue_date changes on UPDATE
 -- ========================================================
 CREATE OR REPLACE FUNCTION public.calculate_emc_certificate_expiry()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND (NEW.issue_date IS DISTINCT FROM OLD.issue_date OR NEW.expiry_date IS NULL)) THEN
-    NEW.expiry_date := NEW.issue_date + INTERVAL '1 year';
+    NEW.expiry_date := NEW.issue_date + INTERVAL '3 years';
   END IF;
   RETURN NEW;
 END;
@@ -54,6 +54,10 @@ CREATE TRIGGER trg_calculate_emc_certificate_expiry
   BEFORE INSERT OR UPDATE ON public.emc_certificates
   FOR EACH ROW
   EXECUTE FUNCTION public.calculate_emc_certificate_expiry();
+
+-- GATED RETROACTIVE MIGRATION QUERY (DO NOT EXECUTE AUTOMATICALLY)
+-- To retroactively migrate existing records to 3 years validity after explicit approval:
+-- UPDATE public.emc_certificates SET expiry_date = issue_date + INTERVAL '3 years' WHERE issue_date IS NOT NULL;
 
 -- ========================================================
 -- 4. Automatic updated_at Timestamp Renewal Trigger

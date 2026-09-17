@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import type { ToastMessage, ToastType } from '@/components/admin/ToastNotification'
@@ -11,15 +11,27 @@ export interface AdminProfile {
   status: boolean
 }
 
+export type AuthorizationStatus =
+  | 'IDLE'
+  | 'LOADING'
+  | 'AUTHORIZED'
+  | 'UNAUTHORIZED'
+  | 'AUTHORIZATION_ERROR'
+
 /* eslint-disable no-unused-vars */
 interface AuthContextType {
   user: User | null
   session: Session | null
   adminProfile: AdminProfile | null
-  loading: boolean
+  initialLoading: boolean
+  isRefreshing: boolean
+  loading: boolean // Backward compatibility mapping for initialLoading
+  authorizationStatus: AuthorizationStatus
   isAuthorizedAdmin: boolean
+  authError: string | null
   login: (email: string, pass: string, rememberMe?: boolean) => Promise<boolean>
   logout: () => Promise<void>
+  retryAuthorization: () => Promise<void>
   showToast: (title: string, message: string, type?: ToastType) => void
   dismissToast: (id: string) => void
 }
@@ -31,9 +43,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null)
-  const [loading, setLoading] = useState<boolean>(true)
+  const [initialLoading, setInitialLoading] = useState<boolean>(true)
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+  const [authorizationStatus, setAuthorizationStatus] = useState<AuthorizationStatus>('IDLE')
   const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState<boolean>(false)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [toasts, setToasts] = useState<ToastMessage[]>([])
+
+  // Track confirmed authorization status and initial boot completion across renders
+  const isConfirmedAuthorizedRef = useRef<boolean>(false)
+  const hasCompletedInitialBootRef = useRef<boolean>(false)
+
+  useEffect(() => {
+    isConfirmedAuthorizedRef.current = isAuthorizedAdmin
+  }, [isAuthorizedAdmin])
 
   const showToast = useCallback((title: string, message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substring(2, 9)
@@ -50,11 +73,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Strict Authorization Check against emc_admins table
   const checkAdminAuthorization = useCallback(
-    async (authUser: User): Promise<{ authorized: boolean; profile: AdminProfile | null }> => {
+    async (
+      authUser: User
+    ): Promise<{
+      status: 'AUTHORIZED' | 'UNAUTHORIZED' | 'AUTHORIZATION_ERROR'
+      profile: AdminProfile | null
+      error?: string
+    }> => {
       try {
         const userEmail = authUser.email?.trim().toLowerCase()
         if (!userEmail) {
-          return { authorized: false, profile: null }
+          return { status: 'UNAUTHORIZED', profile: null }
         }
 
         const { data, error } = await supabase
@@ -63,9 +92,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .or(`user_id.eq.${authUser.id},email.ilike.${userEmail}`)
           .maybeSingle()
 
-        if (error || !data) {
+        if (error) {
+          console.warn('[Auth Warning] Database query error while checking emc_admins:', error.message)
+          return { status: 'AUTHORIZATION_ERROR', profile: null, error: error.message }
+        }
+
+        if (!data) {
           console.warn('[Auth Warning] User is not registered in emc_admins:', userEmail)
-          return { authorized: false, profile: null }
+          return { status: 'UNAUTHORIZED', profile: null }
         }
 
         if (data.status === true) {
@@ -84,70 +118,127 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: data.role || 'Administrator',
             status: true,
           }
-          return { authorized: true, profile }
+          return { status: 'AUTHORIZED', profile }
         }
 
         // Account exists but is deactivated (status = false)
-        return { authorized: false, profile: null }
+        return { status: 'UNAUTHORIZED', profile: null }
       } catch (err) {
-        console.error('[Auth Error] Failed to verify admin authorization:', err)
-        return { authorized: false, profile: null }
+        const errMsg = err instanceof Error ? err.message : 'Failed to verify admin authorization.'
+        console.error('[Auth Error] Exception during admin authorization check:', err)
+        return { status: 'AUTHORIZATION_ERROR', profile: null, error: errMsg }
       }
     },
     []
   )
 
   const handleSessionInit = useCallback(
-    async (currentSession: Session | null) => {
-      setLoading(true)
+    async (currentSession: Session | null, isInitialBoot: boolean = false) => {
+      // Once initial boot has completed, force isInitialBoot to false for all subsequent events
+      const actualInitialBoot = isInitialBoot && !hasCompletedInitialBootRef.current
+
+      if (actualInitialBoot) {
+        setInitialLoading(true)
+      } else {
+        setIsRefreshing(true)
+      }
+
+      setAuthError(null)
+
       if (currentSession?.user) {
         setSession(currentSession)
         setUser(currentSession.user)
-        const { authorized, profile } = await checkAdminAuthorization(currentSession.user)
-        if (authorized && profile) {
+
+        const authResult = await checkAdminAuthorization(currentSession.user)
+
+        if (authResult.status === 'AUTHORIZED' && authResult.profile) {
           setIsAuthorizedAdmin(true)
-          setAdminProfile(profile)
-        } else {
+          setAdminProfile(authResult.profile)
+          setAuthorizationStatus('AUTHORIZED')
+        } else if (authResult.status === 'UNAUTHORIZED') {
           setIsAuthorizedAdmin(false)
           setAdminProfile(null)
+          setAuthorizationStatus('UNAUTHORIZED')
           await supabase.auth.signOut()
           showToast(
             'Unauthorized Access',
             'Your account does not have active administrator privileges.',
             'error'
           )
+        } else if (authResult.status === 'AUTHORIZATION_ERROR') {
+          setAuthError(authResult.error || 'Network error while verifying authorization privileges.')
+
+          // DUAL-MODE ERROR HANDLING:
+          if (isConfirmedAuthorizedRef.current) {
+            // Case B: Active Session - Retain last confirmed AUTHORIZED state during background refresh failure
+            console.warn('[Auth Warning] Background refresh failed to reach emc_admins. Retaining active session state.')
+            setAuthorizationStatus('AUTHORIZED')
+          } else {
+            // Case A: Initial Boot - Set AUTHORIZATION_ERROR. Do NOT sign out, do NOT redirect, do NOT authorize.
+            setIsAuthorizedAdmin(false)
+            setAdminProfile(null)
+            setAuthorizationStatus('AUTHORIZATION_ERROR')
+          }
         }
       } else {
         setSession(null)
         setUser(null)
         setIsAuthorizedAdmin(false)
         setAdminProfile(null)
+        setAuthorizationStatus('UNAUTHORIZED')
       }
-      setLoading(false)
+
+      if (actualInitialBoot) {
+        hasCompletedInitialBootRef.current = true
+        setInitialLoading(false)
+      } else {
+        setIsRefreshing(false)
+      }
     },
     [checkAdminAuthorization, showToast]
   )
 
+  const retryAuthorization = useCallback(async () => {
+    const { data: { session: currentSession } } = await supabase.auth.getSession()
+    hasCompletedInitialBootRef.current = false
+    await handleSessionInit(currentSession, true)
+  }, [handleSessionInit])
+
   useEffect(() => {
+    let mounted = true
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSessionInit(session)
+      if (mounted) {
+        handleSessionInit(session, true)
+      }
     })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return
+
       if (_event === 'SIGNED_OUT') {
         setSession(null)
         setUser(null)
         setIsAuthorizedAdmin(false)
         setAdminProfile(null)
-        setLoading(false)
-      } else if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED') {
-        handleSessionInit(session)
+        setAuthorizationStatus('UNAUTHORIZED')
+        hasCompletedInitialBootRef.current = false
+        setInitialLoading(false)
+        setIsRefreshing(false)
+      } else if (_event === 'SIGNED_IN') {
+        // If initial boot is already done, treat SIGNED_IN as background refresh
+        const isInitial = !hasCompletedInitialBootRef.current
+        handleSessionInit(session, isInitial)
+      } else if (_event === 'TOKEN_REFRESHED' || _event === 'USER_UPDATED') {
+        // Background session activity - do NOT toggle initialLoading
+        handleSessionInit(session, false)
       }
     })
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
   }, [handleSessionInit])
@@ -171,10 +262,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Verify emc_admins authorization
-    const { authorized, profile } = await checkAdminAuthorization(data.user)
+    const authResult = await checkAdminAuthorization(data.user)
 
-    if (!authorized || !profile) {
+    if (authResult.status !== 'AUTHORIZED' || !authResult.profile) {
       await supabase.auth.signOut()
+      setAuthorizationStatus('UNAUTHORIZED')
+      setIsAuthorizedAdmin(false)
+      setAdminProfile(null)
       showToast(
         'Unauthorized Access',
         'Your account does not have active administrator privileges.',
@@ -185,9 +279,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUser(data.user)
     setSession(data.session)
-    setAdminProfile(profile)
+    setAdminProfile(authResult.profile)
     setIsAuthorizedAdmin(true)
-    showToast('Login Successful', `Welcome back, ${profile.name}!`, 'success')
+    setAuthorizationStatus('AUTHORIZED')
+    showToast('Login Successful', `Welcome back, ${authResult.profile.name}!`, 'success')
     return true
   }
 
@@ -197,6 +292,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null)
     setAdminProfile(null)
     setIsAuthorizedAdmin(false)
+    setAuthorizationStatus('UNAUTHORIZED')
     showToast('Logged Out', 'You have been logged out successfully.', 'info')
   }
 
@@ -206,10 +302,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         session,
         adminProfile,
-        loading,
+        initialLoading,
+        isRefreshing,
+        loading: initialLoading,
+        authorizationStatus,
         isAuthorizedAdmin,
+        authError,
         login,
         logout,
+        retryAuthorization,
         showToast,
         dismissToast,
       }}
@@ -228,3 +329,4 @@ export const useAuth = () => {
   }
   return context
 }
+

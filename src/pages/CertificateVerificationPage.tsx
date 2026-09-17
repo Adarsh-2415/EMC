@@ -38,18 +38,25 @@ export const CertificateVerificationPage: React.FC = () => {
 
   const calculateStatus = (issueDateString: string): 'VERIFIED' | 'RENEWAL_DUE' => {
     try {
-      const issueDate = new Date(issueDateString)
-      if (isNaN(issueDate.getTime())) return 'VERIFIED'
+      if (!issueDateString) return 'VERIFIED'
 
-      const expiryDate = new Date(issueDate)
-      expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+      // Timezone-safe UTC date string parsing ("YYYY-MM-DD") to avoid local offset 1-day shifts
+      const parts = issueDateString.split('-')
+      if (parts.length !== 3) return 'VERIFIED'
+
+      const year = parseInt(parts[0], 10)
+      const month = parseInt(parts[1], 10) - 1
+      const day = parseInt(parts[2], 10)
+
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return 'VERIFIED'
+
+      // Expiry Date = Issue Date + 3 Years
+      const expiryDate = new Date(Date.UTC(year + 3, month, day, 23, 59, 59, 999))
 
       const today = new Date()
-      // Set to start of day for accurate comparison
-      today.setHours(0, 0, 0, 0)
-      expiryDate.setHours(23, 59, 59, 999)
+      const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0)
 
-      return today <= expiryDate ? 'VERIFIED' : 'RENEWAL_DUE'
+      return todayUTC <= expiryDate.getTime() ? 'VERIFIED' : 'RENEWAL_DUE'
     } catch {
       return 'VERIFIED'
     }
